@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 '''
 ((abc){4})
 [1-5]{5}
@@ -10,7 +12,7 @@ COUNT = 2
 ANY = 3
 TREE = 4
 
-class Node    
+class Node:    
     def __init__(self, ntype, parent = None):
         self.type = ntype    
         self.c = None
@@ -24,7 +26,8 @@ class RegX:
         self.parseregx(regstr)        
 
     def parseany(self, regstr):
-        
+        pass
+
     def parseregx(self, regstr, idx = 0):
         regstr_len = len(regstr)
         while True:
@@ -62,5 +65,5 @@ class RegX:
                 idx+=1
             elif regstr[idx] == '.':                
                 pass
-            elif:
+            else:
                 pass
