@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 '''
 ((abc){4})
@@ -12,25 +13,28 @@ COUNT = 2
 ANY = 3
 TREE = 4
 
-class Node:    
+class Node:
     def __init__(self, ntype, parent = None):
-        self.type = ntype    
+        self.type = ntype
         self.c = None
         self.children = []
         self.parent = parent
-        
-class RegX:    
+
+class RegX:
     def __init__(self, regstr):
         self.curnode = Node(TREE)
         self.tokens = self.curnode.children
-        self.parseregx(regstr)        
+        self.parseregx(regstr)
 
-    def parseany(self, regstr):
-        pass
+    def parseany(self, regstr, idx):
+        regstr_len = len(regstr)
+        while idx < regstr_len:
+            if regstr[idx] == '-' and regstr[idx+1] != ']' and regstr[idx-1] != '[':
+                for c in range(ord(regstr[idx-1]), ord(regstr[idx-1]))
 
     def parseregx(self, regstr, idx = 0):
         regstr_len = len(regstr)
-        while True:
+        while idx < regstr_len:
             if regstr[idx] == '[':
                 newnode = Node(ANY, self.curnode)
                 self.tokens.append(newnode)
@@ -43,11 +47,12 @@ class RegX:
                 newnode = Node(TREE, self.curnode)
                 self.curnode = newnode
                 self.tokens = newnode.children
-                parseregx(regstr, idx)
+                idx = self.parseregx(regstr, idx)
             elif regstr[idx] == ')':
                 self.curnode = self.curnode.parent
                 self.tokens = self.curnode.children
                 idx+=1
+                break
             elif regstr[idx] == '?':
                 newnode = Node(COUNT, self.curnode)
                 newnode.c = regstr[idx]
@@ -63,7 +68,8 @@ class RegX:
                 newnode.c = regstr[idx]
                 self.tokens.insert(-1, newnode)
                 idx+=1
-            elif regstr[idx] == '.':                
+            elif regstr[idx] == '.':
                 pass
             else:
                 pass
+        return idx
