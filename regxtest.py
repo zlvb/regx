@@ -24,11 +24,11 @@ class Node:
         self.children = []
         self.parent = parent
 
-
 class RegX:
     def __init__(self, regstr):
         self.curnode = Node(TREE)
         self.tokens = self.curnode.children
+        self.parsemap = {'[':(ANY, self.parseany), '{':(COUNT, self.parsecount), '(':(TREE, self.parseregx)}
         self.parseregx(regstr)
 
     def gettrans(self, regstr, idx, parent):
@@ -37,12 +37,12 @@ class RegX:
         idx += 1
         return newnode, idx
 
-    def addnode(self, ntype, pos=0):
+    def addnode(self, ntype):
         newnode = Node(ntype, self.curnode)
-        if pos == 0:
+        if ntype != COUNT:
             self.tokens.append(newnode)
         else:
-            self.tokens.insert(pos, newnode)
+            self.tokens.insert(-1, newnode)
         return newnode
 
     def parseany(self, regstr, idx):
@@ -79,38 +79,27 @@ class RegX:
                 idx += 1
         return idx
 
+    def levelin(self, ntype, func, regstr, idx):
+        newnode = self.addnode(ntype)
+        self.curnode = newnode
+        self.tokens = newnode.children
+        idx+=1
+        idx = func(regstr, idx)
+        self.curnode = self.curnode.parent
+        self.tokens = self.curnode.children
+        return idx
+
     def parseregx(self, regstr, idx = 0):
         regstr_len = len(regstr)
         while idx < regstr_len:
-            if regstr[idx] == '[':
-                newnode = self.addnode(ANY)
-                self.curnode = newnode
-                self.tokens = newnode.children
-                idx+=1
-                idx = self.parseany(regstr, idx)
-                self.curnode = self.curnode.parent
-                self.tokens = self.curnode.children
-            elif regstr[idx] == '{':
-                newnode = self.addnode(COUNT, -1)
-                self.curnode = newnode
-                self.tokens = newnode.children
-                idx+=1
-                idx = self.parsecount(regstr, idx)
-                self.curnode = self.curnode.parent
-                self.tokens = self.curnode.children
-            elif regstr[idx] == '(':
-                newnode = self.addnode(TREE)
-                self.curnode = newnode
-                self.tokens = newnode.children
-                idx+=1
-                idx = self.parseregx(regstr, idx)
-                self.curnode = self.curnode.parent
-                self.tokens = self.curnode.children
+            if regstr[idx] in '[{(':
+                args = self.parsemap[regstr[idx]]
+                idx = self.levelin(args[0], args[1], regstr, idx)
             elif regstr[idx] == ')':
                 idx+=1
                 break
             elif regstr[idx] in '?*+':
-                newnode = self.addnode(COUNT, -1)
+                newnode = self.addnode(COUNT)
                 newnode.c = regstr[idx]
                 idx+=1
             elif regstr[idx] == '.':
