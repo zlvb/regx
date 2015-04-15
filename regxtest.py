@@ -16,6 +16,7 @@ ANY = 3
 TREE = 4
 DOT = 5
 RANGE = 6
+META = 7
 
 class Node:
     def __init__(self, ntype, parent = None):
@@ -31,9 +32,21 @@ class RegX:
         self.parsemap = {'[':(ANY, self.parseany), '{':(COUNT, self.parsecount), '(':(TREE, self.parseregx)}
         self.parseregx(regstr)
 
-    def gettrans(self, regstr, idx, parent):
-        newnode = Node(EQUL, self.curnode)
-        newnode.c = regstr[idx]
+    def gettrans(self, regstr, idx):
+        me = regstr[idx]
+        if me == '\\':
+            idx += 1
+            me = regstr[idx]
+            if ne in 'sdb':
+                newnode = Node(META, self.curnode)
+            else:
+                newnode = Node(EQUL, self.curnode)
+        elif me in '.^$':
+            newnode = Node(META, self.curnode)
+        else:
+            newnode = Node(EQUL, self.curnode)
+        newnode.c = me
+
         idx += 1
         return newnode, idx
 
@@ -48,23 +61,19 @@ class RegX:
     def parseany(self, regstr, idx):
         regstr_len = len(regstr)
         while idx < regstr_len:
-            if regstr[idx] == '\\':
-                newnode, idx = self.gettrans(regstr, idx, self.curnode)
-                self.tokens.append(newnode)
-            elif regstr[idx] == ']':
+            if regstr[idx] == ']':
                 idx += 1
                 break
             elif regstr[idx] == '-':
                 idx += 1
                 newnode = Node(RANGE, self.curnode)
                 newnode.children.append(self.tokens.pop())
-                upbound, idx = self.gettrans(regstr, idx, self.curnode)
+                upbound, idx = self.gettrans(regstr, idx)
                 newnode.children.append(upbound)
                 self.tokens.append(newnode)
             else:
-                newnode = self.addnode(EQUL)
-                newnode.c = regstr[idx]
-                idx += 1
+                newnode, idx = self.gettrans(regstr, idx)
+                self.tokens.append(newnode)
         return idx
 
     def parsecount(self, regstr, idx):
@@ -102,14 +111,9 @@ class RegX:
                 newnode = self.addnode(COUNT)
                 newnode.c = regstr[idx]
                 idx+=1
-            elif regstr[idx] == '.':
-                idx+=1
-            elif regstr[idx] == '\\':
-                newnode, idx = self.gettrans(regstr, idx, self.curnode)
             else:
-                newnode = self.addnode(EQUL)
-                newnode.c = regstr[idx]
-                idx+=1
+                newnode, idx = self.gettrans(regstr, idx)
+                self.tokens.append(newnode)
         return idx
 
 ##################################################
