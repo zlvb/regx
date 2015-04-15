@@ -24,22 +24,6 @@ class Node:
         self.children = []
         self.parent = parent
 
-def displaynode(node):
-    if node.type == EQUL:
-        return '[%d] %s\n' % (node.type, node.c)
-    elif node.type == COUNT:
-        return '[%d] %s\n' % (node.type, str(node.c))
-    elif node.type == RANGE:
-        return '[%d] %s-%s\n' % (node.type, node.children[0], node.children[1])
-    elif node.type == DOT:
-        return '[%d] %s\n' % (node.type, '.')
-
-    ast = []
-    for n in node.children:
-        ast.append(displaynode(n))
-
-    return ''.join(ast)
-
 
 class RegX:
     def __init__(self, regstr):
@@ -48,16 +32,15 @@ class RegX:
         self.parseregx(regstr)
 
     def gettrans(self, regstr, idx):
-        return regstr[idx]
+        newnode = Node(EQUL, self.curnode)
+        newnode.c = regstr[idx]
+        return newnode
 
     def parseany(self, regstr, idx):
         regstr_len = len(regstr)
-        last_c = None
         while idx < regstr_len:
             if regstr[idx] == '\\':
-                last_c = gettrans(regstr,idx+1)
-                newnode = Node(EQUL, self.curnode)
-                newnode.c = last_c
+                newnode = gettrans(regstr, idx+1, self.curnode)
                 self.tokens.append(newnode)
                 idx += 2
             elif regstr[idx] == ']':
@@ -65,14 +48,13 @@ class RegX:
                 break
             elif regstr[idx] == '-':
                 newnode = Node(RANGE, self.curnode)
-                newnode.children.append(last_c)
+                newnode.children.append(self.tokens.pop())
                 newnode.children.append(self.gettrans(regstr, idx+1))
                 self.tokens.append(newnode)
                 idx+=2
             else:
-                last_c = regstr[idx]
                 newnode = Node(EQUL, self.curnode)
-                newnode.c = last_c
+                newnode.c = regstr[idx]
                 self.tokens.append(newnode)
                 idx += 1
         return idx
@@ -128,9 +110,9 @@ class RegX:
                 self.tokens.insert(-1, newnode)
                 idx+=1
             elif regstr[idx] == '.':
-                pass
+                idx+=1
             elif regstr[idx] == '\\':
-                pass
+                idx+=2
             else:
                 newnode = Node(EQUL, self.curnode)
                 newnode.c = regstr[idx]
@@ -138,7 +120,26 @@ class RegX:
                 idx+=1
         return idx
 
+##################################################
+# TEST
+
+def displaynode(node,tab=''):
+    if node.type == EQUL:
+        return '%s[%d] %s\n' % (tab, node.type, node.c)
+    elif node.type == COUNT:
+        return '%s[%d] %s\n' % (tab, node.type, str(node.c))
+    elif node.type == RANGE:
+        return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+'\t', displaynode(node.children[0]), tab+'\t', tab+'\t', displaynode(node.children[1]))
+    elif node.type == DOT:
+        return '%s[%d] %s\n' % (node.type, '.')
+
+    ast = []
+    for n in node.children:
+        ast.append(displaynode(n,tab+'\t'))
+
+    return ''.join(ast)
+
 import sys
-r = RegX('([123a-z]{4}){99}')
+r = RegX('([123a-z]{4}){99}(fuck)*')
 for n in r.tokens:
     sys.stdout.write(displaynode(n))
