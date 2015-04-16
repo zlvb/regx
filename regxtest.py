@@ -14,9 +14,8 @@ EQUL = 1
 COUNT = 2
 ANY = 3
 TREE = 4
-DOT = 5
-RANGE = 6
-META = 7
+RANGE = 5
+META = 6
 
 class Node:
     def __init__(self, ntype, parent = None):
@@ -37,7 +36,7 @@ class RegX:
         if me == '\\':
             idx += 1
             me = regstr[idx]
-            if ne in 'sdb':
+            if me in 'sdb':
                 newnode = Node(META, self.curnode)
             else:
                 newnode = Node(EQUL, self.curnode)
@@ -126,8 +125,8 @@ def displaynode(node,tab=''):
         return '%s[%d] %s\n' % (tab, node.type, str(node.c))
     elif node.type == RANGE:
         return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+'\t', displaynode(node.children[0]), tab+'\t', tab+'\t', displaynode(node.children[1]))
-    elif node.type == DOT:
-        return '%s[%d] %s\n' % (node.type, '.')
+    elif node.type == META:
+        return '%s[%d] %s\n' % (tab, node.type, node.c)
 
     ast = []
     for n in node.children:
@@ -136,6 +135,6 @@ def displaynode(node,tab=''):
     return ''.join(ast)
 
 import sys
-r = RegX('([123a-z]{4}){99}(fuck)*')
+r = RegX('([123a-z]{4}){99}(fuck)*\s*')
 for n in r.tokens:
     sys.stdout.write(displaynode(n))
