@@ -45,7 +45,6 @@ class RegX:
         else:
             newnode = Node(EQUL, self.curnode)
         newnode.c = me
-
         idx += 1
         return newnode, idx
 
