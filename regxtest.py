@@ -7,10 +7,10 @@
 5+
 5*
 5?
-ord(last_c), ord(gettrans(regstr, idx+1])+1)
+ord(last_c), ord(getescape(regstr, idx+1])+1)
 '''
 
-EQUL = 1
+CHAR = 1
 COUNT = 2
 ANY = 3
 TREE = 4
@@ -29,9 +29,10 @@ class RegX:
         self.curnode = Node(TREE)
         self.tokens = self.curnode.children
         self.parsemap = {'[':(ANY, self.parseany), '{':(COUNT, self.parsecount), '(':(TREE, self.parseregx)}
+        self.escape = {'t':'\t','n':'\n','a':'\a','r':'\r','f':'\f','v':'\v'}
         self.parseregx(regstr)
 
-    def gettrans(self, regstr, idx):
+    def getescape(self, regstr, idx):
         me = regstr[idx]
         if me == '\\':
             idx += 1
@@ -39,11 +40,12 @@ class RegX:
             if me in 'sdb':
                 newnode = Node(META, self.curnode)
             else:
-                newnode = Node(EQUL, self.curnode)
+                newnode = Node(CHAR, self.curnode)
+                me = self.escape[me] if me in 'tnafrv' else me
         elif me in '.^$':
             newnode = Node(META, self.curnode)
         else:
-            newnode = Node(EQUL, self.curnode)
+            newnode = Node(CHAR, self.curnode)
         newnode.c = me
         idx += 1
         return newnode, idx
@@ -66,23 +68,28 @@ class RegX:
                 idx += 1
                 newnode = Node(RANGE, self.curnode)
                 newnode.children.append(self.tokens.pop())
-                upbound, idx = self.gettrans(regstr, idx)
+                upbound, idx = self.getescape(regstr, idx)
                 newnode.children.append(upbound)
                 self.tokens.append(newnode)
             else:
-                newnode, idx = self.gettrans(regstr, idx)
+                newnode, idx = self.getescape(regstr, idx)
                 self.tokens.append(newnode)
         return idx
 
     def parsecount(self, regstr, idx):
         regstr_len = len(regstr)
+        self.curnode.c = []
         while idx < regstr_len:
-            if regstr[idx] == '}':
-                self.curnode.c = int(''.join(self.tokens))
+            c = regstr[idx]
+            if c in ',}':
+                if len(self.tokens) > 0:
+                    self.curnode.c.append(int(''.join(self.tokens)))
+                    self.tokens[:] = []
                 idx += 1
-                break
+                if c == '}':
+                    break
             else:
-                self.tokens.append(regstr[idx])
+                self.tokens.append(c)
                 idx += 1
         return idx
 
@@ -110,15 +117,22 @@ class RegX:
                 newnode.c = regstr[idx]
                 idx+=1
             else:
-                newnode, idx = self.gettrans(regstr, idx)
+                newnode, idx = self.getescape(regstr, idx)
                 self.tokens.append(newnode)
         return idx
+
+    def match(self, source):
+        idx = 0
+        for node in self.tokens:
+            if node.type == CHAR:
+                if source[idx]:
+                    pass
 
 ##################################################
 # TEST
 ##################################################
 def displaynode(node,tab=''):
-    if node.type == EQUL:
+    if node.type == CHAR:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == COUNT:
         return '%s[%d] %s\n' % (tab, node.type, str(node.c))
@@ -134,6 +148,6 @@ def displaynode(node,tab=''):
     return ''.join(ast)
 
 import sys
-r = RegX('([123a-z]{4}){99}(fuck)*\s*')
+r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*')
 for n in r.tokens:
     sys.stdout.write(displaynode(n))
