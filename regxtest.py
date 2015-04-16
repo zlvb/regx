@@ -117,7 +117,7 @@ class RegX:
 
 ##################################################
 # TEST
-
+##################################################
 def displaynode(node,tab=''):
     if node.type == EQUL:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
