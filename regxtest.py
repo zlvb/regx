@@ -11,9 +11,9 @@ ord(last_c), ord(getescape(regstr, idx+1])+1)
 '''
 
 CHAR = 1
-COUNT = 2
+REPEAT = 2
 ANY = 3
-TREE = 4
+CATCH = 4
 RANGE = 5
 META = 6
 OR = 7
@@ -27,11 +27,9 @@ class Node:
 
 class RegX:
     def __init__(self, regstr):
-        self.root = Node(TREE)
-        self.curnode = Node(TREE, self.root)
-        self.root.children.append(self.curnode)
+        self.curnode = Node(CATCH)
         self.tokens = self.curnode.children
-        self.parsemap = {'[':(ANY, self.parseany), '{':(COUNT, self.parsecount), '(':(TREE, self.parseregx)}
+        self.parsemap = {'[':(ANY, self.parseany), '{':(REPEAT, self.parsecount), '(':(CATCH, self.parseregx)}
         self.escape = {'t':'\t','n':'\n','a':'\a','r':'\r','f':'\f','v':'\v'}
         self.parseregx(regstr)
 
@@ -55,7 +53,7 @@ class RegX:
 
     def addnode(self, ntype):
         newnode = Node(ntype, self.curnode)
-        if ntype != COUNT:
+        if ntype != REPEAT:
             self.tokens.append(newnode)
         else:
             self.tokens.insert(-1, newnode)
@@ -116,7 +114,7 @@ class RegX:
                 idx+=1
                 break
             elif regstr[idx] in '?*+':
-                newnode = self.addnode(COUNT)
+                newnode = self.addnode(REPEAT)
                 newnode.c = regstr[idx]
                 idx+=1
             elif regstr[idx] == '|':
@@ -149,20 +147,24 @@ def displaynode(node,tab=''):
     ast = []
     if node.type == CHAR:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
-    elif node.type == COUNT:
+    elif node.type == REPEAT:
         return '%s[%d] %s\n' % (tab, node.type, str(node.c))
     elif node.type == RANGE:
-        return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+'\t', displaynode(node.children[0]), tab+'\t', tab+'\t', displaynode(node.children[1]))
+        return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+' ', displaynode(node.children[0]), tab+' ', tab+' ', displaynode(node.children[1]))
     elif node.type == META:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == OR:
         ast.append('%s[%d]\n' % (tab, node.type))
-
+    elif node.type == CATCH:
+        ast.append('%s[%d]\n' % (tab, node.type))
     for n in node.children:
         ast.append(displaynode(n,tab+' '))
 
     return ''.join(ast)
 
 import sys
-r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*|1|2')
-sys.stdout.write(displaynode(r.root))
+r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
+sys.stdout.write(displaynode(r.curnode))
+print '-----------------------------------'
+r = RegX('1|2{3}')
+sys.stdout.write(displaynode(r.curnode))
