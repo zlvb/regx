@@ -16,6 +16,7 @@ ANY = 3
 TREE = 4
 RANGE = 5
 META = 6
+OR = 7
 
 class Node:
     def __init__(self, ntype, parent = None):
@@ -26,7 +27,9 @@ class Node:
 
 class RegX:
     def __init__(self, regstr):
-        self.curnode = Node(TREE)
+        self.root = Node(TREE)
+        self.curnode = Node(TREE, self.root)
+        self.root.children.append(self.curnode)
         self.tokens = self.curnode.children
         self.parsemap = {'[':(ANY, self.parseany), '{':(COUNT, self.parsecount), '(':(TREE, self.parseregx)}
         self.escape = {'t':'\t','n':'\n','a':'\a','r':'\r','f':'\f','v':'\v'}
@@ -116,6 +119,17 @@ class RegX:
                 newnode = self.addnode(COUNT)
                 newnode.c = regstr[idx]
                 idx+=1
+            elif regstr[idx] == '|':
+                op = self.curnode.parent
+                newnode = Node(OR, op)
+                newnode.children.append(self.curnode)
+                self.curnode.parent = newnode
+                self.curnode = newnode
+                self.tokens = newnode.children
+                if op:
+                    op.children.pop()
+                    op.children.append(newnode)
+                idx += 1
             else:
                 newnode, idx = self.getescape(regstr, idx)
                 self.tokens.append(newnode)
@@ -132,6 +146,7 @@ class RegX:
 # TEST
 ##################################################
 def displaynode(node,tab=''):
+    ast = []
     if node.type == CHAR:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == COUNT:
@@ -140,14 +155,14 @@ def displaynode(node,tab=''):
         return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+'\t', displaynode(node.children[0]), tab+'\t', tab+'\t', displaynode(node.children[1]))
     elif node.type == META:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
+    elif node.type == OR:
+        ast.append('%s[%d]\n' % (tab, node.type))
 
-    ast = []
     for n in node.children:
-        ast.append(displaynode(n,tab+'\t'))
+        ast.append(displaynode(n,tab+' '))
 
     return ''.join(ast)
 
 import sys
-r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*')
-for n in r.tokens:
-    sys.stdout.write(displaynode(n))
+r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*|1|2')
+sys.stdout.write(displaynode(r.root))
