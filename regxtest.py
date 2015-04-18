@@ -155,10 +155,13 @@ def displaynode(node,tab=''):
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == OR:
         ast.append('%s[%d]\n' % (tab, node.type))
-    elif node.type == CATCH:
-        ast.append('%s[%d]\n' % (tab, node.type))
+
+    nexttab = tab if node.type == CATCH else tab + ' '
+    lasttype = None
     for n in node.children:
-        ast.append(displaynode(n,tab+' '))
+        nexttab2 = nexttab if lasttype != REPEAT else nexttab + ' '
+        ast.append(displaynode(n, nexttab2))
+        lasttype = n.type
 
     return ''.join(ast)
 
@@ -166,5 +169,8 @@ import sys
 r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
 sys.stdout.write(displaynode(r.curnode))
 print '-----------------------------------'
-r = RegX('1|2{3}')
+r = RegX('(31|2{3})')
+sys.stdout.write(displaynode(r.curnode))
+print '-----------------------------------'
+r = RegX('(123){3}45')
 sys.stdout.write(displaynode(r.curnode))
