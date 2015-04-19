@@ -17,6 +17,7 @@ CATCH = 4
 RANGE = 5
 META = 6
 OR = 7
+NOTANY = 8
 
 class Node:
     def __init__(self, ntype, parent = None):
@@ -25,7 +26,7 @@ class Node:
         self.children = []
         self.parent = parent
 
-class RegX:
+class RegeX:
     def __init__(self, regstr):
         self.curnode = Node(CATCH)
         self.tokens = self.curnode.children
@@ -133,12 +134,31 @@ class RegX:
                 self.tokens.append(newnode)
         return idx
 
+    def matchnode(self, node, source, idx):
+        if node.type == CHAR:
+            if source[idx] == node.c:
+                return True, idx + 1
+        elif node.type == ANY:
+            for n in node.children:
+                ret, idx = self.matchnode(n, source, idx)
+                if ret:
+                    return True, idx
+        elif node.type == RANGE:
+            for aii in range(ord(node.children[0].c), ord(node.children[1].c)+1):
+                if chr(aii) == source[idx]:
+                    return True, idx + 1
+        elif node.type == CATCH:
+            for n in node.children:
+                ret, idx = self.matchnode(n, source, idx)
+                if not ret:
+                    return False, idx
+            return True, idx
+
+        return False, idx
+
     def match(self, source):
-        idx = 0
-        for node in self.tokens:
-            if node.type == CHAR:
-                if source[idx]:
-                    pass
+        return self.matchnode(self.curnode, source, 0)
+
 
 ##################################################
 # TEST
@@ -150,7 +170,7 @@ def displaynode(node,tab=''):
     elif node.type == REPEAT:
         return '%s[%d] %s\n' % (tab, node.type, str(node.c))
     elif node.type == RANGE:
-        return '%s[%d]\n%s%s%s-\n%s%s\n' % (tab, node.type, tab+' ', displaynode(node.children[0]), tab+' ', tab+' ', displaynode(node.children[1]))
+        return '%s[%d]\n%s%s%s%s\n' % (tab, node.type, tab+' ', displaynode(node.children[0]), tab+' ', displaynode(node.children[1]))
     elif node.type == META:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == OR:
@@ -166,11 +186,12 @@ def displaynode(node,tab=''):
     return ''.join(ast)
 
 import sys
-r = RegX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
+r = RegeX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
 sys.stdout.write(displaynode(r.curnode))
 print '-----------------------------------'
-r = RegX('(31|2{3})')
+r = RegeX('(31|2{3})')
 sys.stdout.write(displaynode(r.curnode))
 print '-----------------------------------'
-r = RegX('(123){3}45')
+r = RegeX('44(1[2-3][2-3])[6789](45)[789]')
 sys.stdout.write(displaynode(r.curnode))
+print r.match('441236457')
