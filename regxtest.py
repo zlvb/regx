@@ -292,6 +292,10 @@ import sys
 #r = RegeX('44(1[2-3][2-3])[6789](45)[789]')
 #sys.stdout.write(displaynode(r.curnode))
 #print r.match('441236457')
-r = RegeX('[^123]+')
+r = RegeX(r'<\w*>\d*</\w*>')
 sys.stdout.write(displaynode(r.curnode))
-print r.match('444')
+print r.match('<head>123</head>')
+
+r = RegeX(r'a(bb)+c')
+sys.stdout.write(displaynode(r.curnode))
+print r.match('abbbc')
