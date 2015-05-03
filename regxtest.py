@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-'''
-((abc){4})
-[1-5]{5}
-5+
-5*
-5?
-ord(last_c), ord(getescape(regstr, idx+1])+1)
-'''
-
 CHAR = 1
 REPEAT = 2
 ANY = 3
@@ -18,6 +9,21 @@ RANGE = 5
 META = 6
 OR = 7
 NOTANY = 8
+
+EOF = -1
+
+class SafeString:
+    def __init__(self, source):
+        self.source = source
+        self.len = len(source)
+
+    def __len__(self):
+        return self.len
+
+    def __getitem__(self, idx):
+        if idx >= self.len:
+            return EOF
+        return self.source[idx]
 
 class Node:
     def __init__(self, ntype, parent = None):
@@ -39,7 +45,7 @@ class RegeX:
         if me == '\\':
             idx += 1
             me = regstr[idx]
-            if me in 'sdb':
+            if me in 'sdbSDwWB':
                 newnode = Node(META, self.curnode)
             else:
                 newnode = Node(CHAR, self.curnode)
@@ -73,6 +79,9 @@ class RegeX:
                 upbound, idx = self.getescape(regstr, idx)
                 newnode.children.append(upbound)
                 self.tokens.append(newnode)
+            elif regstr[idx] == '^':
+                self.curnode.type = NOTANY
+                idx += 1
             else:
                 newnode, idx = self.getescape(regstr, idx)
                 self.tokens.append(newnode)
@@ -87,12 +96,16 @@ class RegeX:
                 if len(self.tokens) > 0:
                     self.curnode.c.append(int(''.join(self.tokens)))
                     self.tokens[:] = []
+                else:
+                    self.curnode.c.append(sys.maxint if c=='}' else 0)
                 idx += 1
                 if c == '}':
+                    self.curnode.c.append(0)
                     break
             else:
                 self.tokens.append(c)
                 idx += 1
+
         return idx
 
     def levelin(self, ntype, func, regstr, idx):
@@ -108,17 +121,27 @@ class RegeX:
     def parseregx(self, regstr, idx = 0):
         regstr_len = len(regstr)
         while idx < regstr_len:
-            if regstr[idx] in '[{(':
+            rc = regstr[idx]
+            if rc in '[({':
                 args = self.parsemap[regstr[idx]]
                 idx = self.levelin(args[0], args[1], regstr, idx)
-            elif regstr[idx] == ')':
+                if rc == '{':
+                    repnode = self.tokens[-2]
+                    nextnode = self.tokens.pop()
+                    nextnode.parent = repnode
+                    repnode.children.append(nextnode)
+            elif rc == ')':
                 idx+=1
                 break
-            elif regstr[idx] in '?*+':
+            elif rc in '?*+':
                 newnode = self.addnode(REPEAT)
                 newnode.c = regstr[idx]
+                repnode = self.tokens[-2]
+                nextnode = self.tokens.pop()
+                nextnode.parent = repnode
+                repnode.children.append(nextnode)
                 idx+=1
-            elif regstr[idx] == '|':
+            elif rc == '|':
                 op = self.curnode.parent
                 newnode = Node(OR, op)
                 newnode.children.append(self.curnode)
@@ -134,30 +157,108 @@ class RegeX:
                 self.tokens.append(newnode)
         return idx
 
+    def matchcatch(self, node, source, idx):
+        for n in node.children:
+            ret, idx = self.matchnode(n, source, idx)
+            if not ret:
+                return False, idx
+        return True, idx
+
+    def isdigit(self, c):
+        return c >= '0' and c <= '9'
+
+    def ischar(self, c):
+        return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z')
+
     def matchnode(self, node, source, idx):
+        if source[idx] == EOF:
+            return False, idx
         if node.type == CHAR:
             if source[idx] == node.c:
                 return True, idx + 1
+        elif node.type == META:
+            if node.c == '.':
+                if source[idx] != '\n':
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 's':
+                if source[idx] in ' \n\r\t':
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 'S':
+                if not source[idx] in ' \n\r\t':
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 'd':
+                if self.isdigit(source[idx]):
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 'D':
+                if not self.isdigit(source[idx]):
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 'w':
+                c = source[idx]
+                if self.ischar(c) or self.isdigit(c) or c == '_':
+                    return True, idx + 1
+                return False, idx
+            elif node.c == 'W':
+                c = source[idx]
+                if not self.ischar(c) and not self.isdigit(c):
+                    return True, idx + 1
+                return False, idx
         elif node.type == ANY:
             for n in node.children:
                 ret, idx = self.matchnode(n, source, idx)
                 if ret:
                     return True, idx
+        elif node.type == NOTANY:
+            for n in node.children:
+                ret, idx = self.matchnode(n, source, idx)
+                if ret:
+                    return False, idx
+            return True, idx + 1
         elif node.type == RANGE:
             for aii in range(ord(node.children[0].c), ord(node.children[1].c)+1):
                 if chr(aii) == source[idx]:
                     return True, idx + 1
         elif node.type == CATCH:
-            for n in node.children:
-                ret, idx = self.matchnode(n, source, idx)
-                if not ret:
-                    return False, idx
-            return True, idx
+            return self.matchcatch(node, source, idx)
+        elif node.type == REPEAT:
+            if node.c == '*':
+                lb = 0
+                ub = sys.maxint
+            elif node.c == '+':
+                lb = 1
+                ub = sys.maxint
+            elif node.c == '?':
+                lb = 0
+                ub = 1
+            elif isinstance(node.c, list):
+                lb = node.c[0]
+                ub = node.c[1]
+            return self.matchrepeate(node, source, idx, lb, ub)
+
 
         return False, idx
 
+    def matchrepeate(self, node, source, idx, lb, ub):
+        for it in xrange(lb):
+            oldidx = idx
+            ret, idx = self.matchcatch(node, source, idx)
+            if not ret:
+                return False, oldidx
+        for it in xrange(ub - lb):
+            oldidx = idx
+            ret, idx = self.matchcatch(node, source, idx)
+            if not ret:
+                return True, oldidx
+        return True, idx
+
     def match(self, source):
-        return self.matchnode(self.curnode, source, 0)
+        source = SafeString(source)
+        ret, idx = self.matchnode(self.curnode, source, 0)
+        return ret and source[idx] == EOF, idx
 
 
 ##################################################
@@ -167,31 +268,30 @@ def displaynode(node,tab=''):
     ast = []
     if node.type == CHAR:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
-    elif node.type == REPEAT:
-        return '%s[%d] %s\n' % (tab, node.type, str(node.c))
     elif node.type == RANGE:
-        return '%s[%d]\n%s%s%s%s\n' % (tab, node.type, tab+' ', displaynode(node.children[0]), tab+' ', displaynode(node.children[1]))
+        return '%s[%d]\n%s%s%s%s\n' % (tab, node.type, tab+'>', displaynode(node.children[0]), tab+'>', displaynode(node.children[1]))
     elif node.type == META:
         return '%s[%d] %s\n' % (tab, node.type, node.c)
     elif node.type == OR:
         ast.append('%s[%d]\n' % (tab, node.type))
+    elif node.type == REPEAT:
+        ast.append('%s[%d] %s\n' % (tab, node.type, str(node.c)))
 
-    nexttab = tab if node.type == CATCH else tab + ' '
-    lasttype = None
     for n in node.children:
-        nexttab2 = nexttab if lasttype != REPEAT else nexttab + ' '
-        ast.append(displaynode(n, nexttab2))
-        lasttype = n.type
+        ast.append(displaynode(n, tab+'>'))
 
     return ''.join(ast)
 
 import sys
-r = RegeX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
+#r = RegeX('([123a-z]{4,5}){99,}(fuck)*\s*|(1|2)')
+#sys.stdout.write(displaynode(r.curnode))
+#print '-----------------------------------'
+#r = RegeX('(31|2{3})')
+#sys.stdout.write(displaynode(r.curnode))
+#print '-----------------------------------'
+#r = RegeX('44(1[2-3][2-3])[6789](45)[789]')
+#sys.stdout.write(displaynode(r.curnode))
+#print r.match('441236457')
+r = RegeX('[^123]+')
 sys.stdout.write(displaynode(r.curnode))
-print '-----------------------------------'
-r = RegeX('(31|2{3})')
-sys.stdout.write(displaynode(r.curnode))
-print '-----------------------------------'
-r = RegeX('44(1[2-3][2-3])[6789](45)[789]')
-sys.stdout.write(displaynode(r.curnode))
-print r.match('441236457')
+print r.match('444')
