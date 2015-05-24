@@ -157,7 +157,25 @@ class RegeX:
                 self.tokens.append(newnode)
         return idx
 
-    def matchcatch(self, node, source, idx):
+    def addrowcol(self, node):
+        pass
+
+    def tree2nfa(self, curstate, node):
+        if node.type in (CHAR, RANGE, META):
+            self.addrowcol(curstate, node)
+            return
+
+        if node.type == OR:
+            for n in node.children:
+                self.tree2nfa(curstate, n)
+        elif node.type == REPEAT:
+            for n in node.children:
+                curstate = self.tree2nfa(curstate, n)
+        elif node.type == CATCH:
+            for n in node.children:
+                curstate = self.tree2nfa(curstate, n)
+
+    def matchchildren(self, node, source, idx):
         for n in node.children:
             ret, idx = self.matchnode(n, source, idx)
             if not ret:
@@ -219,11 +237,11 @@ class RegeX:
                     return False, idx
             return True, idx + 1
         elif node.type == RANGE:
-            for aii in range(ord(node.children[0].c), ord(node.children[1].c)+1):
-                if chr(aii) == source[idx]:
+            for aii in xrange(ord(node.children[0].c), ord(node.children[1].c)+1):
+                if aii == ord(source[idx]):
                     return True, idx + 1
         elif node.type == CATCH:
-            return self.matchcatch(node, source, idx)
+            return self.matchchildren(node, source, idx)
         elif node.type == REPEAT:
             if node.c == '*':
                 lb = 0
@@ -245,12 +263,13 @@ class RegeX:
     def matchrepeate(self, node, source, idx, lb, ub):
         for it in xrange(lb):
             oldidx = idx
-            ret, idx = self.matchcatch(node, source, idx)
+            ret, idx = self.matchchildren(node, source, idx)
             if not ret:
                 return False, oldidx
-        for it in xrange(ub - lb):
+        t = ub - lb
+        for it in xrange(t):
             oldidx = idx
-            ret, idx = self.matchcatch(node, source, idx)
+            ret, idx = self.matchchildren(node, source, idx)
             if not ret:
                 return True, oldidx
         return True, idx
@@ -299,3 +318,45 @@ print r.match('<head>123</head>')
 r = RegeX(r'a(bb)+c')
 sys.stdout.write(displaynode(r.curnode))
 print r.match('abbbc')
+
+'''
+(abc|abd)|(eee|eec)
+
+or   0
+  or 0
+  	 0 a 1 b 2 c 3
+	 0 a 1 b 2 d 4
+  or
+  	eee
+	eec
+
+   0   1   2   3   4   5   6   7   8
+0      a               e
+
+1          b
+
+2              c   d
+
+3
+
+4
+
+5                          e
+
+6                              e   c
+
+7
+
+8
+
+(abc)*
+
+r 0
+  0 a 1 b 2 c 3 a   0
+                EOF 4
+
+   0   1
+0
+
+
+'''
