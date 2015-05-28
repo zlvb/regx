@@ -157,20 +157,23 @@ class RegeX:
                 self.tokens.append(newnode)
         return idx
 
-    def addrowcol(self, node):
+    def addrowcol(self, node, nextstate):
         pass
 
-    def tree2nfa(self, curstate, node):
+    def tree2nfa(self, curstate, node, nextstate = None):
         if node.type in (CHAR, RANGE, META):
-            self.addrowcol(curstate, node)
-            return
+            return self.addrowcol(curstate, node, nextstate)
 
         if node.type == OR:
             for n in node.children:
                 self.tree2nfa(curstate, n)
         elif node.type == REPEAT:
-            for n in node.children:
-                curstate = self.tree2nfa(curstate, n)
+            beginstate = curstate
+            for idx, n in enumerate(node.children):
+                if idx == len(node.children) - 1:
+                    curstate = self.tree2nfa(curstate, n, beginstate)
+                else:
+                    curstate = self.tree2nfa(curstate, n)
         elif node.type == CATCH:
             for n in node.children:
                 curstate = self.tree2nfa(curstate, n)
